@@ -3,6 +3,7 @@
 Cada funcionario tiene su cuenta y su firma. Quien hace un acta le **pide la firma** a su jefe; el jefe la lee y la **aprueba o rechaza** desde donde esté. Todo queda en el historial, con el documento.
 
 - `index.html` — la aplicación
+- `nueva-clave.html` — olvidé mi contraseña / elegir contraseña nueva (a donde lleva el enlace del correo)
 - `verificar.html` — página pública para comprobar un documento firmado (a la que lleva el QR)
 - `supabase.sql` — base de datos y reglas de seguridad
 - `config.js` — datos del proyecto de Supabase
@@ -14,11 +15,13 @@ Sitio: https://jr8969662-beep.github.io/facil-firma/sistema/
 
 1. **Crear el proyecto en Supabase** (supabase.com → New project, región São Paulo).
 2. **Crear la base de datos:** Supabase → *SQL Editor* → *New query* → pegar todo `supabase.sql` → *Run*.
-3. **Configurar el acceso:** Supabase → *Authentication* → *URL Configuration*:
-   - *Site URL*: `https://jr8969662-beep.github.io/facil-firma/sistema/`
-   - *Redirect URLs*: agregar la misma dirección.
+3. **Configurar el acceso:** Supabase → *Authentication* → *URL Configuration* → *Redirect URLs*: agregar
+   `https://jr8969662-beep.github.io/facil-firma/sistema/**` (no cambiar el *Site URL* si el proyecto lo comparte Mi Comisaría).
+   En *Sign In / Providers → Email* se puede apagar *Confirm email*: las cuentas igual las aprueba el administrador.
+   Para que el correo de "Olvidé mi contraseña" llegue a cualquier Gmail hay que configurar un correo propio
+   (*Authentication → Emails → SMTP Settings*), porque el correo gratis de Supabase solo envía a los miembros del equipo.
 4. **Completar `config.js`** con la *Project URL* y la *anon public key* (Project Settings → API).
-5. **Crear tu cuenta** en el sitio (Crear cuenta) y confirmar el correo.
+5. **Crear tu cuenta** en el sitio (Crear cuenta).
 6. **Hacerte administrador:** en el *SQL Editor* ejecutar, con tu correo:
    ```sql
    update public.firma_perfiles set aprobado = true, es_admin = true

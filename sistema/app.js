@@ -18,7 +18,7 @@ const JERARQUIAS = ["AGENTE", "CABO", "CABO PRIMERO", "SARGENTO", "SARGENTO PRIM
 const TIPOS = ["ACTA", "CONSTANCIA", "NOTA", "INFORME", "ELEVACIÓN", "OTRO"];
 const ESTADOS = { pendiente: "Pendiente", firmada: "Firmada", rechazada: "Rechazada", cancelada: "Cancelada" };
 
-const ST = { uid: null, sesion: null, perfil: null, firma: null, perfiles: [], canal: null, vista: null, recuperando: false };
+const ST = { uid: null, sesion: null, perfil: null, firma: null, perfiles: [], canal: null, vista: null };
 
 /* ---------- configuración ---------- */
 const C = window.CONFIG || {};
@@ -28,7 +28,10 @@ if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY || !window.supabase) {
     Los pasos están en <span class="mono">LEEME.md</span>.</p></div>`;
   return;
 }
-const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
+// Si alguien abre acá un enlace de "olvidé mi contraseña", va a la página de contraseña nueva
+if (/type=recovery|error_code=/.test(location.hash)) { location.replace("nueva-clave.html" + location.hash); return; }
+// "implicit": el enlace del correo funciona aunque se abra en otro dispositivo
+const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, { auth: { flowType: "implicit" } });
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 /* ---------- utilidades ---------- */
@@ -68,8 +71,6 @@ async function verificarClave(clave) {
 sb.auth.onAuthStateChange((ev, sesion) => {
   // se difiere para no llamar a Supabase dentro del aviso (evita bloqueos)
   setTimeout(() => {
-    if (ev === "PASSWORD_RECOVERY") { ST.recuperando = true; vistaNuevaClave(); return; }
-    if (ST.recuperando) return;
     const uid = sesion?.user?.id || null;
     if (uid && uid === ST.uid) { ST.sesion = sesion; return; }   // misma persona (ej. confirmó su clave)
     iniciar(sesion);
@@ -133,7 +134,7 @@ async function contarPendientes() {
 }
 
 /* ---------- navegación ---------- */
-window.addEventListener("hashchange", () => { if (ST.perfil && !ST.recuperando) rutear(); });
+window.addEventListener("hashchange", () => { if (ST.perfil) rutear(); });
 function rutear() {
   if (!ST.perfil) return;
   let h = location.hash.replace(/^#/, "");
@@ -168,7 +169,7 @@ function vistaAcceso(modo = "ingresar") {
       <form id="fIngresar" ${modo !== "ingresar" ? "hidden" : ""} style="display:flex;flex-direction:column;gap:12px">
         <label class="f">Correo <input class="i" id="inEmail" type="email" autocomplete="email" required></label>
         <label class="f">Contraseña <input class="i" id="inClave" type="password" autocomplete="current-password" required></label>
-        <div class="row"><button class="btn pri" type="submit">Ingresar</button><span class="sp"></span><a href="#" id="olvide">Olvidé mi contraseña</a></div>
+        <div class="row"><button class="btn pri" type="submit">Ingresar</button><span class="sp"></span><a href="nueva-clave.html">Olvidé mi contraseña</a></div>
         <div class="msg" id="mIn" role="status"></div>
       </form>
       <form id="fRegistro" ${modo !== "registro" ? "hidden" : ""} style="display:flex;flex-direction:column;gap:12px">
@@ -195,12 +196,6 @@ function vistaAcceso(modo = "ingresar") {
     const { error } = await sb.auth.signInWithPassword({ email: $("#inEmail").value.trim(), password: $("#inClave").value });
     if (error) msg(m, traducir(error), "err");
   };
-  $("#olvide").onclick = async e => {
-    e.preventDefault(); const m = $("#mIn"), email = $("#inEmail").value.trim();
-    if (!email) return msg(m, "Escribí tu correo arriba y tocá de nuevo “Olvidé mi contraseña”.", "err");
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
-    msg(m, error ? traducir(error) : "Si el correo está registrado, te llegó un enlace para crear una contraseña nueva.", error ? "err" : "ok");
-  };
   $("#fRegistro").onsubmit = async e => {
     e.preventDefault(); const m = $("#mReg");
     if ($("#rClave").value !== $("#rClave2").value) return msg(m, "Las contraseñas no coinciden.", "err");
@@ -214,23 +209,6 @@ function vistaAcceso(modo = "ingresar") {
     if (!data.session) msg(m, "Listo. Te mandamos un correo para confirmar la cuenta: abrí el enlace y después ingresá.", "ok");
   };
 }
-function vistaNuevaClave() {
-  $("#nav").hidden = true;
-  app.innerHTML = `<div class="card acceso"><h1>Contraseña nueva</h1>
-    <form id="fNC" style="display:flex;flex-direction:column;gap:12px">
-      <label class="f">Contraseña nueva <input class="i" id="nc1" type="password" minlength="8" required autocomplete="new-password"></label>
-      <label class="f">Repetila <input class="i" id="nc2" type="password" minlength="8" required autocomplete="new-password"></label>
-      <div class="row"><button class="btn pri" type="submit">Guardar contraseña</button></div><div class="msg" id="mNC"></div></form></div>`;
-  $("#fNC").onsubmit = async e => {
-    e.preventDefault(); const m = $("#mNC");
-    if ($("#nc1").value !== $("#nc2").value) return msg(m, "Las contraseñas no coinciden.", "err");
-    const { error } = await sb.auth.updateUser({ password: $("#nc1").value });
-    if (error) return msg(m, traducir(error), "err");
-    ST.recuperando = false; history.replaceState(null, "", location.pathname);
-    const { data } = await sb.auth.getSession(); iniciar(data.session);
-  };
-}
-
 /* =====================================================================
    LISTAS
    ===================================================================== */
