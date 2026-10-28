@@ -314,3 +314,17 @@ do $$ begin
   alter publication supabase_realtime add table public.solicitudes;
 exception when duplicate_object then null; when undefined_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------
+-- 9. CUENTAS CREADAS ANTES DE EJECUTAR ESTE ARCHIVO
+--    (les crea el perfil que les falta; no toca los que ya existen)
+-- ---------------------------------------------------------------------
+insert into public.perfiles (id, email, nombre, apellido, jerarquia, dependencia, legajo)
+select u.id, u.email,
+       upper(coalesce(u.raw_user_meta_data->>'nombre','')),
+       upper(coalesce(u.raw_user_meta_data->>'apellido','')),
+       upper(coalesce(u.raw_user_meta_data->>'jerarquia','')),
+       upper(coalesce(u.raw_user_meta_data->>'dependencia','')),
+       upper(nullif(u.raw_user_meta_data->>'legajo',''))
+from auth.users u
+on conflict (id) do nothing;
