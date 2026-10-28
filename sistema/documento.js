@@ -148,6 +148,11 @@
     const iw = png.width * esc, ih = png.height * esc;
     const lineaY = top - altoImg - 2;
     pag.drawImage(png, { x: x + (w - iw) / 2, y: lineaY + 1, width: iw, height: ih });
+    // marca sobre la firma: si alguien la recorta y la pega en otro lado, el código
+    // muestra para qué documento fue dada (y la verificación no coincide)
+    const marca = limpio(reg, `VÁLIDA SOLO PARA EL DOC. ${o.codigo}`);
+    const sm = ajustar(reg, marca, w * .92, 5.5, 3.5);
+    pag.drawText(marca, { x: x + (w - reg.widthOfTextAtSize(marca, sm)) / 2, y: lineaY + ih * .45, size: sm, font: reg, color: rgb(.75, .12, .12), opacity: .55 });
     pag.drawLine({ start: { x, y: lineaY }, end: { x: x + w, y: lineaY }, thickness: .7, color: tinta });
 
     const nombre = limpio(neg, `${f.jerarquia} ${f.nombre} ${f.apellido}`.replace(/\s+/g, " ").trim());
