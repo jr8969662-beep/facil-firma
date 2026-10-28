@@ -48,7 +48,7 @@ function traducir(e) {
   return m.replace(/^Error:\s*/, "");
 }
 async function bytesDe(path) {
-  const { data, error } = await sb.storage.from("actas").download(path);
+  const { data, error } = await sb.storage.from("firma-actas").download(path);
   if (error) throw new Error("No se pudo descargar el documento.");
   return new Uint8Array(await data.arrayBuffer());
 }
@@ -85,7 +85,7 @@ async function iniciar(sesion) {
     return vistaAcceso();
   }
   app.innerHTML = `<p class="lead">Cargando tu cuenta…</p>`;
-  const { data: perfil, error } = await sb.from("perfiles").select("*").eq("id", ST.uid).maybeSingle();
+  const { data: perfil, error } = await sb.from("firma_perfiles").select("*").eq("id", ST.uid).maybeSingle();
   if (error || !perfil) {
     app.innerHTML = `<div class="card acceso"><h1>No encontramos tu perfil</h1><p class="lead">${esc(error ? traducir(error) : "Cerrá sesión y volvé a ingresar. Si sigue pasando, avisale al administrador.")}</p></div>`;
     $("#salir").hidden = false; return;
@@ -96,14 +96,14 @@ async function iniciar(sesion) {
   $("#who").hidden = $("#salir").hidden = $("#nav").hidden = false;
   $("#navAdmin").hidden = !perfil.es_admin;
   if (perfil.aprobado) {
-    const { data } = await sb.from("perfiles").select("id,nombre,apellido,jerarquia,dependencia").eq("aprobado", true).order("apellido");
+    const { data } = await sb.from("firma_perfiles").select("id,nombre,apellido,jerarquia,dependencia").eq("aprobado", true).order("apellido");
     ST.perfiles = data || [];
     suscribir(); contarPendientes();
   }
   rutear();
 }
 async function cargarFirma() {
-  const { data } = await sb.from("firmas").select("imagen,actualizada").eq("usuario_id", ST.uid).maybeSingle();
+  const { data } = await sb.from("firma_imagenes").select("imagen,actualizada").eq("usuario_id", ST.uid).maybeSingle();
   ST.firma = data || null;
 }
 $("#salir").addEventListener("click", async () => { await sb.auth.signOut(); location.hash = ""; });
@@ -112,7 +112,7 @@ $("#salir").addEventListener("click", async () => { await sb.auth.signOut(); loc
 let recargaPendiente = null;
 function suscribir() {
   ST.canal = sb.channel("solicitudes-" + ST.uid)
-    .on("postgres_changes", { event: "*", schema: "public", table: "solicitudes" }, p => {
+    .on("postgres_changes", { event: "*", schema: "public", table: "firma_solicitudes" }, p => {
       contarPendientes();
       const n = p.new || {};
       if (p.eventType === "INSERT" && n.firmante_id === ST.uid && n.solicitante_id !== ST.uid) avisar("Nuevo pedido de firma", `${n.tipo_doc} · ${n.titulo}`);
@@ -127,7 +127,7 @@ function avisar(titulo, cuerpo) {
   try { if ("Notification" in window && Notification.permission === "granted" && document.hidden) new Notification(titulo, { body: cuerpo }); } catch {}
 }
 async function contarPendientes() {
-  const { count } = await sb.from("solicitudes").select("id", { count: "exact", head: true }).eq("firmante_id", ST.uid).eq("estado", "pendiente");
+  const { count } = await sb.from("firma_solicitudes").select("id", { count: "exact", head: true }).eq("firmante_id", ST.uid).eq("estado", "pendiente");
   const b = $("#badge"); b.textContent = count || 0; b.hidden = !count;
   document.title = (count ? `(${count}) ` : "") + "Firmas Policía de Salta";
 }
@@ -208,7 +208,7 @@ function vistaAcceso(modo = "ingresar") {
     const U = id => $(id).value.trim().toUpperCase();
     const { data, error } = await sb.auth.signUp({
       email: $("#rEmail").value.trim(), password: $("#rClave").value,
-      options: { emailRedirectTo: location.href.split("#")[0], data: { nombre: U("#rNom"), apellido: U("#rApe"), jerarquia: U("#rJer"), dependencia: U("#rDep"), legajo: U("#rLeg") } }
+      options: { emailRedirectTo: location.href.split("#")[0], data: { app: "firmas", nombre: U("#rNom"), apellido: U("#rApe"), jerarquia: U("#rJer"), dependencia: U("#rDep"), legajo: U("#rLeg") } }
     });
     if (error) return msg(m, traducir(error), "err");
     if (!data.session) msg(m, "Listo. Te mandamos un correo para confirmar la cuenta: abrí el enlace y después ingresá.", "ok");
@@ -234,7 +234,7 @@ function vistaNuevaClave() {
 /* =====================================================================
    LISTAS
    ===================================================================== */
-const SEL = "*, solicitante:perfiles!solicitudes_solicitante_id_fkey(nombre,apellido,jerarquia,dependencia), firmante:perfiles!solicitudes_firmante_id_fkey(nombre,apellido,jerarquia,dependencia)";
+const SEL = "*, solicitante:firma_perfiles!firma_solicitudes_solicitante_id_fkey(nombre,apellido,jerarquia,dependencia), firmante:firma_perfiles!firma_solicitudes_firmante_id_fkey(nombre,apellido,jerarquia,dependencia)";
 function firmanteDe(s) { return s.firmante_datos || s.firmante; }
 function itemHTML(s, rol) {
   const quien = rol === "firmante"
@@ -254,7 +254,7 @@ function filtroSeg(opciones, actual) {
 
 async function vistaParaFirmar() {
   app.innerHTML = `${avisosCuenta()}<div><h1>Para firmar</h1><p class="lead">Pedidos de firma que te hicieron y todavía no respondiste.</p></div><div class="lista" id="lista"><p class="lead">Cargando…</p></div>`;
-  const { data, error } = await sb.from("solicitudes").select(SEL).eq("firmante_id", ST.uid).eq("estado", "pendiente").order("creada");
+  const { data, error } = await sb.from("firma_solicitudes").select(SEL).eq("firmante_id", ST.uid).eq("estado", "pendiente").order("creada");
   const l = $("#lista"); if (!l) return;
   if (error) return l.innerHTML = `<div class="aviso bad">${esc(traducir(error))}</div>`;
   const notif = ("Notification" in window && Notification.permission === "default")
@@ -269,7 +269,7 @@ async function vistaMisPedidos(f = "todos") {
     ${filtroSeg([["todos", "Todos"], ["pendiente", "Pendientes"], ["firmada", "Firmados"], ["rechazada", "Rechazados"]], f)}
     <div class="lista" id="lista"><p class="lead">Cargando…</p></div>`;
   $$("#filtro button").forEach(b => b.onclick = () => vistaMisPedidos(b.dataset.f));
-  let q = sb.from("solicitudes").select(SEL).eq("solicitante_id", ST.uid).order("creada", { ascending: false }).limit(300);
+  let q = sb.from("firma_solicitudes").select(SEL).eq("solicitante_id", ST.uid).order("creada", { ascending: false }).limit(300);
   if (f !== "todos") q = q.eq("estado", f);
   const { data, error } = await q; const l = $("#lista"); if (!l) return;
   if (error) return l.innerHTML = `<div class="aviso bad">${esc(traducir(error))}</div>`;
@@ -282,7 +282,7 @@ async function vistaHistorial(f = "todos", texto = "") {
     <div class="row">${filtroSeg([["todos", "Todo"], ["firmada", "Firmados"], ["rechazada", "Rechazados"]], f)}<span class="sp"></span>
     <input class="i" id="buscar" placeholder="Buscar por título o por quién lo pidió" style="max-width:340px" value="${esc(texto)}"></div>
     <div id="resumen" class="eyebrow"></div><div class="lista" id="lista"><p class="lead">Cargando…</p></div>`;
-  const { data, error } = await sb.from("solicitudes").select(SEL).eq("firmante_id", ST.uid).in("estado", ["firmada", "rechazada"]).order("resuelta", { ascending: false }).limit(1000);
+  const { data, error } = await sb.from("firma_solicitudes").select(SEL).eq("firmante_id", ST.uid).in("estado", ["firmada", "rechazada"]).order("resuelta", { ascending: false }).limit(1000);
   const l = $("#lista"); if (!l) return;
   if (error) return l.innerHTML = `<div class="aviso bad">${esc(traducir(error))}</div>`;
   const pintar = () => {
@@ -456,12 +456,12 @@ async function vistaPedir() {
     try {
       const hash = await Documento.sha256(B.bytes);
       const pos = { pagina: B.posicion.pagina, x: +B.posicion.x.toFixed(2), y: +B.posicion.y.toFixed(2), w: +B.posicion.w.toFixed(2), pw: B.posicion.pw, ph: B.posicion.ph };
-      const { error } = await sb.from("solicitudes").insert({
+      const { error } = await sb.from("firma_solicitudes").insert({
         id, solicitante_id: ST.uid, firmante_id: B.firmante.id, tipo_doc: $("#pTipo").value, titulo,
         mensaje: $("#pMsg").value.trim() || null, origen: B.origen, pdf_original: ruta, hash_original: hash, posicion: pos });
       if (error) throw error;
-      const up = await sb.storage.from("actas").upload(ruta, new Blob([B.bytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
-      if (up.error) { await sb.rpc("cancelar_solicitud", { p_id: id }); throw new Error("No se pudo subir el documento. El pedido se canceló; probá de nuevo."); }
+      const up = await sb.storage.from("firma-actas").upload(ruta, new Blob([B.bytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
+      if (up.error) { await sb.rpc("firma_cancelar", { p_id: id }); throw new Error("No se pudo subir el documento. El pedido se canceló; probá de nuevo."); }
       location.hash = "#solicitud/" + id;
     } catch (e) { btn.disabled = false; msg(m, traducir(e), "err"); }
   };
@@ -472,7 +472,7 @@ async function vistaPedir() {
    ===================================================================== */
 async function vistaSolicitud(id) {
   app.innerHTML = `<p class="lead">Cargando…</p>`;
-  const { data: s, error } = await sb.from("solicitudes").select(SEL).eq("id", id).maybeSingle();
+  const { data: s, error } = await sb.from("firma_solicitudes").select(SEL).eq("id", id).maybeSingle();
   if (error || !s) { app.innerHTML = `<div class="card"><h1>No encontramos ese pedido</h1><p class="lead">No existe o no tenés acceso.</p><div><a class="btn" href="#para-firmar">Volver</a></div></div>`; return; }
   const soyFirmante = s.firmante_id === ST.uid, soySolicitante = s.solicitante_id === ST.uid;
   const volver = soyFirmante && s.estado !== "pendiente" ? "#historial" : soyFirmante ? "#para-firmar" : "#mis-pedidos";
@@ -544,7 +544,7 @@ async function vistaSolicitud(id) {
   const bc = $("#aCancelar");
   if (bc) bc.onclick = async () => {
     if (!bc.dataset.ok) { bc.dataset.ok = 1; bc.textContent = "Sí, cancelar el pedido"; return; }
-    bc.disabled = true; const { error } = await sb.rpc("cancelar_solicitud", { p_id: s.id });
+    bc.disabled = true; const { error } = await sb.rpc("firma_cancelar", { p_id: s.id });
     if (error) { bc.disabled = false; return msg($("#aMsg"), traducir(error), "err"); }
     vistaSolicitud(s.id);
   };
@@ -556,7 +556,7 @@ async function vistaSolicitud(id) {
     const b = $("#aConfRech"), m = $("#aMsg");
     if (!$("#aMotivo").value.trim()) return msg(m, "Escribí el motivo, así quien lo pidió sabe qué corregir.", "err");
     b.disabled = true;
-    const { error } = await sb.rpc("rechazar_solicitud", { p_id: s.id, p_motivo: $("#aMotivo").value.trim() });
+    const { error } = await sb.rpc("firma_rechazar", { p_id: s.id, p_motivo: $("#aMotivo").value.trim() });
     if (error) { b.disabled = false; return msg(m, traducir(error), "err"); }
     contarPendientes(); vistaSolicitud(s.id);
   };
@@ -578,9 +578,9 @@ async function vistaSolicitud(id) {
       const url = new URL("verificar.html?c=" + encodeURIComponent(s.codigo), location.href).href;
       const bytes = await Documento.firmar(original, { posicion: s.posicion, firmaPng: png, codigo: s.codigo, urlVerificar: url, fecha: ahora, firmante: ST.perfil });
       const hashF = await Documento.sha256(bytes), ruta = `${s.id}/firmado-${ahora}.pdf`;
-      const up = await sb.storage.from("actas").upload(ruta, new Blob([bytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
+      const up = await sb.storage.from("firma-actas").upload(ruta, new Blob([bytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
       if (up.error) throw new Error("No se pudo guardar el documento firmado. Probá de nuevo.");
-      const { error } = await sb.rpc("aprobar_solicitud", { p_id: s.id, p_hash_leido: s.hash_original, p_pdf_firmado: ruta, p_hash_firmado: hashF });
+      const { error } = await sb.rpc("firma_aprobar", { p_id: s.id, p_hash_leido: s.hash_original, p_pdf_firmado: ruta, p_hash_firmado: hashF });
       if (error) throw error;
       contarPendientes(); vistaSolicitud(s.id);
     } catch (e) { b.disabled = false; msg(m, traducir(e), "err"); }
@@ -625,7 +625,7 @@ async function vistaMiFirma() {
     try {
       if (ST.firma) { msg(m, "Confirmando tu identidad…"); await verificarClave($("#fClave").value); }
       msg(m, "Guardando…");
-      const { error } = await sb.from("firmas").upsert({ usuario_id: ST.uid, imagen: pad.png() });
+      const { error } = await sb.from("firma_imagenes").upsert({ usuario_id: ST.uid, imagen: pad.png() });
       if (error) throw error;
       await cargarFirma(); ST.perfil.tiene_firma = true;
       vistaMiFirma(); setTimeout(() => msg($("#fMsg"), "Firma guardada.", "ok"), 0);
@@ -635,12 +635,12 @@ async function vistaMiFirma() {
     const m = $("#dMsg"), U = s => $(s).value.trim().toUpperCase();
     const datos = { jerarquia: U("#dJer"), dependencia: U("#dDep"), legajo: U("#dLeg") || null };
     if (!datos.jerarquia || !datos.dependencia) return msg(m, "La jerarquía y la dependencia no pueden quedar vacías.", "err");
-    const { error } = await sb.from("perfiles").update(datos).eq("id", ST.uid);
+    const { error } = await sb.from("firma_perfiles").update(datos).eq("id", ST.uid);
     if (error) return msg(m, traducir(error), "err");
     Object.assign(ST.perfil, datos); $("#whoName").textContent = nombre(ST.perfil); $("#whoDep").textContent = datos.dependencia;
     msg(m, "Datos guardados.", "ok");
   };
-  const { data } = await sb.from("firmas_cambios").select("fecha").eq("usuario_id", ST.uid).order("fecha", { ascending: false }).limit(50);
+  const { data } = await sb.from("firma_cambios").select("fecha").eq("usuario_id", ST.uid).order("fecha", { ascending: false }).limit(50);
   const c = $("#cambios"); if (c) c.innerHTML = data && data.length ? `<ul style="margin:0;padding-left:18px">${data.map((x, i) => `<li>${fh(x.fecha)}${i === data.length - 1 ? " · creación" : ""}</li>`).join("")}</ul>` : "Todavía no hay cambios.";
 }
 
@@ -696,7 +696,7 @@ async function vistaAdmin() {
   app.innerHTML = `<div><h1>Administración</h1><p class="lead">Aprobá las cuentas nuevas solo después de confirmar que la persona es quien dice ser. Bloquear una cuenta no borra lo que ya firmó.</p></div>
     <div class="card"><h2>Cuentas esperando aprobación</h2><div id="pend" class="lista"><p class="lead">Cargando…</p></div></div>
     <div class="card"><div class="row"><h2>Todas las cuentas</h2><span class="sp"></span><input class="i" id="aBus" placeholder="Buscar" style="max-width:260px"></div><div class="scroll-x" id="todas"></div></div>`;
-  const { data, error } = await sb.from("perfiles").select("*").order("creado", { ascending: false });
+  const { data, error } = await sb.from("firma_perfiles").select("*").order("creado", { ascending: false });
   if (error) return $("#pend").innerHTML = `<div class="aviso bad">${esc(traducir(error))}</div>`;
   const pend = data.filter(p => !p.aprobado);
   $("#pend").innerHTML = pend.length ? pend.map(p => `<div class="item" style="cursor:default"><span class="t">${esc(nombre(p))}</span>
@@ -718,9 +718,9 @@ async function vistaAdmin() {
       const id = b.dataset.ap || b.dataset.bl, val = !!b.dataset.ap;
       if (!val && !b.dataset.ok) { b.dataset.ok = 1; b.textContent = "¿Seguro? Bloquear"; return; }
       b.disabled = true;
-      const { error } = await sb.rpc("admin_aprobar", { p_usuario: id, p_aprobado: val });
+      const { error } = await sb.rpc("firma_admin_aprobar", { p_usuario: id, p_aprobado: val });
       if (error) { b.disabled = false; b.textContent = traducir(error); return; }
-      const { data: pf } = await sb.from("perfiles").select("id,nombre,apellido,jerarquia,dependencia").eq("aprobado", true).order("apellido");
+      const { data: pf } = await sb.from("firma_perfiles").select("id,nombre,apellido,jerarquia,dependencia").eq("aprobado", true).order("apellido");
       ST.perfiles = pf || []; vistaAdmin();
     });
   }

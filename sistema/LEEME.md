@@ -21,7 +21,7 @@ Sitio: https://jr8969662-beep.github.io/facil-firma/sistema/
 5. **Crear tu cuenta** en el sitio (Crear cuenta) y confirmar el correo.
 6. **Hacerte administrador:** en el *SQL Editor* ejecutar, con tu correo:
    ```sql
-   update public.perfiles set aprobado = true, es_admin = true
+   update public.firma_perfiles set aprobado = true, es_admin = true
    where email = 'TU_CORREO@gmail.com';
    ```
 7. Desde **Administración** aprobás a cada funcionario que se registre.

@@ -33,7 +33,7 @@
 
   async function verificar(codigo) {
     res.innerHTML = `<p class="lead">Buscando…</p>`;
-    const { data, error } = await sb.rpc("verificar", { p_codigo: codigo });
+    const { data, error } = await sb.rpc("firma_verificar", { p_codigo: codigo });
     if (error) { res.innerHTML = `<div class="aviso bad">No se pudo consultar. Revisá tu conexión y probá de nuevo.</div>`; return; }
     const d = data && data[0];
     if (!d) { res.innerHTML = `<div class="aviso bad"><b>No existe un documento firmado con el código ${esc(codigo.toUpperCase())}.</b> Revisá que esté bien escrito. Si lo está, el documento no fue emitido por este sistema.</div>`; return; }
