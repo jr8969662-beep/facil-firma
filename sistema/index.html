@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Firmas Policía de Salta</title>
+<meta name="theme-color" content="#1b3266">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,600;7..72,700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="in gutter">
+    <div class="brand">Firmas<small>Policía de Salta</small></div>
+    <div class="who" id="who" hidden><b id="whoName"></b><span id="whoDep"></span></div>
+    <button class="salir" id="salir" hidden>Salir</button>
+  </div>
+</header>
+<nav class="tabs" id="nav" hidden>
+  <div class="in gutter">
+    <a href="#para-firmar" data-v="para-firmar">Para firmar<span class="badge" id="badge" hidden>0</span></a>
+    <a href="#pedir" data-v="pedir">Pedir firma</a>
+    <a href="#mis-pedidos" data-v="mis-pedidos">Mis pedidos</a>
+    <a href="#historial" data-v="historial">Historial de mi firma</a>
+    <a href="#mi-firma" data-v="mi-firma">Mi firma y datos</a>
+    <a href="#admin" data-v="admin" id="navAdmin" hidden>Administración</a>
+  </div>
+</nav>
+<main class="gutter" id="app">
+  <p class="lead">Cargando…</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="documento.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

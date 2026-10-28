@@ -12,3 +12,9 @@ El PDF se procesa en el dispositivo y no se sube a ningún servidor.
 **Aviso:** es una firma electrónica (imagen de la firma). No reemplaza a la firma digital con certificado de la Ley 25.506.
 
 Sitio: https://jr8969662-beep.github.io/facil-firma/
+
+## Sistema de Firmas (carpeta `sistema/`)
+
+Sistema con cuentas para el personal policial: cada funcionario crea su firma una vez, pide firmas a sus superiores y los superiores las aprueban o rechazan a distancia, con historial y verificación por QR. Instrucciones en [`sistema/LEEME.md`](sistema/LEEME.md).
+
+Sitio: https://jr8969662-beep.github.io/facil-firma/sistema/

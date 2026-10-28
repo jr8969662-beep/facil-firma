@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Verificar firma · Policía de Salta</title>
+<meta name="theme-color" content="#1b3266">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,600;7..72,700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top"><div class="in gutter"><div class="brand">Verificar firma<small>Policía de Salta</small></div></div></header>
+<main class="gutter" style="max-width:720px">
+  <div><h1>¿Este documento es auténtico?</h1>
+  <p class="lead">Escaneá el QR del documento o escribí el código que figura al pie. Después podés subir el PDF para comprobar que no fue modificado.</p></div>
+  <form class="card" id="f">
+    <label class="f">Código de verificación <input class="i mono may" id="cod" placeholder="Ej: 3F2A-91BC-07DE" autocomplete="off" required></label>
+    <div class="row"><button class="btn pri" type="submit">Verificar</button></div>
+  </form>
+  <div id="res" aria-live="polite"></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="documento.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s), res = $("#res");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const C = window.CONFIG || {};
+  if (!C.SUPABASE_URL || !window.supabase) { res.innerHTML = `<div class="aviso bad">La verificación no está configurada todavía.</div>`; return; }
+  const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+
+  async function verificar(codigo) {
+    res.innerHTML = `<p class="lead">Buscando…</p>`;
+    const { data, error } = await sb.rpc("verificar", { p_codigo: codigo });
+    if (error) { res.innerHTML = `<div class="aviso bad">No se pudo consultar. Revisá tu conexión y probá de nuevo.</div>`; return; }
+    const d = data && data[0];
+    if (!d) { res.innerHTML = `<div class="aviso bad"><b>No existe un documento firmado con el código ${esc(codigo.toUpperCase())}.</b> Revisá que esté bien escrito. Si lo está, el documento no fue emitido por este sistema.</div>`; return; }
+    const f = d.firmante || {};
+    res.innerHTML = `
+      <div class="card">
+        <div class="aviso ok"><b>Código válido.</b> Este código corresponde a un documento firmado electrónicamente en el sistema.</div>
+        <dl class="datos">
+          <dt>Documento</dt><dd>${esc(d.tipo_doc)} · ${esc(d.titulo)}</dd>
+          <dt>Firmado por</dt><dd>${esc(`${f.jerarquia || ""} ${f.nombre || ""} ${f.apellido || ""}`.trim())}<br><span style="color:var(--muted)">${esc(f.dependencia || "")}</span></dd>
+          <dt>Fecha y hora</dt><dd>${esc(Documento.fechaHora(d.firmado))}</dd>
+          <dt>Pedido por</dt><dd>${esc(d.solicitante)}</dd>
+          <dt>Código</dt><dd class="mono">${esc(d.codigo)}</dd>
+        </dl>
+        <h2>Comprobar el archivo</h2>
+        <p class="lead" style="margin:0">Elegí el PDF que te dieron. Se compara acá mismo, sin subirlo a ningún lado.</p>
+        <label class="f">Archivo PDF <input class="i" type="file" id="pdf" accept="application/pdf"></label>
+        <div id="cmp" aria-live="polite"></div>
+      </div>`;
+    $("#pdf").onchange = async e => {
+      const file = e.target.files[0]; if (!file) return;
+      const h = await Documento.sha256(new Uint8Array(await file.arrayBuffer()));
+      $("#cmp").innerHTML = h === d.hash_firmado
+        ? `<div class="aviso ok"><b>El archivo es auténtico.</b> Es exactamente el documento que se firmó y no fue modificado.</div>`
+        : `<div class="aviso bad"><b>El archivo no coincide.</b> No es el documento original firmado o fue modificado después de la firma (aunque sea un cambio mínimo). Una impresión escaneada tampoco coincide: en ese caso, compará el contenido con el original.</div>`;
+    };
+  }
+  $("#f").onsubmit = e => { e.preventDefault(); const c = $("#cod").value.trim(); if (c) { history.replaceState(null, "", "?c=" + encodeURIComponent(c.toUpperCase())); verificar(c); } };
+  const c = new URLSearchParams(location.search).get("c");
+  if (c) { $("#cod").value = c; verificar(c); }
+})();
+</script>
+</body>
+</html>
