@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Firmá Fácil</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,7 +18,8 @@
 :root[data-theme="dark"]{
   --paper:#11151d; --sheet:#1a2030; --line:#2f3850; --muted:#9aa4b8; --fg:#e8ecf3;
   --ink:#8fa8ff; --ink-soft:#232c48; --ok:#5fcf93; --warn:#f0b35a; color-scheme:dark}
-body{background:var(--paper);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
+[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
 .wrap{max-width:860px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:28px}
 header h1{font-family:var(--f-display);font-weight:700;font-size:clamp(28px,5vw,38px);margin:0;letter-spacing:-.01em;text-wrap:balance}
 header p{margin:6px 0 0;color:var(--muted);max-width:62ch}
@@ -38,7 +41,17 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 label.ctl{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
 input[type=range]{accent-color:var(--ink);width:110px}
 /* Papel de firma */
-.pad{position:relative;border:1px dashed var(--line);border-radius:8px;background:var(--sheet);touch-action:none;height:220px}
+.pad{position:relative;border:1px dashed var(--line);border-radius:8px;background:var(--sheet);touch-action:none;height:clamp(340px,52vh,480px)}
+.pad .grow{position:absolute;top:10px;right:10px;z-index:2;font:500 13px var(--f-body);border:1px solid var(--line);background:var(--sheet);color:var(--fg);padding:6px 12px;border-radius:999px;cursor:pointer}
+.pad .grow:hover{border-color:var(--ink)}
+.pad.full{position:fixed;inset:0;z-index:50;height:auto;border:0;border-radius:0}
+.pad.full .grow{top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));background:var(--ink);border-color:var(--ink);color:var(--sheet);padding:8px 16px;font-size:14px}
+.pad.full .fullbar{display:flex}
+.pad .fullbar{display:none;position:absolute;z-index:2;top:calc(12px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px));gap:8px}
+.pad .fullbar button{font:500 14px var(--f-body);border:1px solid var(--line);background:var(--sheet);color:var(--fg);padding:8px 14px;border-radius:999px;cursor:pointer}
+.pad.full .base{bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+.pad.full .lbl{bottom:calc(36px + env(safe-area-inset-bottom,0px))}
+body.signing{overflow:hidden}
 .pad canvas{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
 .pad .base{position:absolute;left:8%;right:8%;bottom:52px;border-top:1.5px solid var(--muted);pointer-events:none}
 .pad .lbl{position:absolute;left:8%;right:8%;bottom:26px;display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:var(--muted);pointer-events:none;text-transform:uppercase}
@@ -63,7 +76,7 @@ input[type=range]{accent-color:var(--ink);width:110px}
 .status{font-size:13.5px;min-height:1.4em}
 .status.ok{color:var(--ok)} .status.err{color:var(--warn)}
 .pageinfo{font-family:var(--f-mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-@media (max-width:520px){.pad{height:190px} section{padding:16px}}
+@media (max-width:520px){.pad{height:clamp(300px,48vh,420px)} section{padding:16px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -98,6 +111,8 @@ input[type=range]{accent-color:var(--ink);width:110px}
         <div class="base"></div>
         <div class="lbl"><span>Firma</span><span id="dateLbl"></span></div>
         <div class="hint" id="hint">Firmá sobre la línea</div>
+        <div class="fullbar"><button id="fUndo">Deshacer</button><button id="fClear">Borrar</button></div>
+        <button class="grow" id="grow" aria-pressed="false">Pantalla completa</button>
       </div>
     </div>
 
@@ -183,8 +198,17 @@ $("dateLbl").textContent = "Salta, " + d.toLocaleDateString("es-AR");
 
 /* ---------- lienzo de firma ---------- */
 const cv = $("cv"), ctx = cv.getContext("2d");
+let prevSize = null;
+function baseY(h){ return h - ($("pad").classList.contains("full") ? 64 : 52); }
 function fit(){
   const r = cv.getBoundingClientRect(), dpr = Math.max(1, window.devicePixelRatio||1);
+  if (!r.width || !r.height) return;
+  // al cambiar el tamaño, la firma se escala y se mantiene apoyada sobre la línea
+  if (prevSize && strokes.length && (prevSize.w !== r.width || prevSize.h !== r.height)){
+    const s = r.width / prevSize.w, ob = prevSize.b, nb = baseY(r.height);
+    strokes.forEach(st=>{ st.w *= s; st.pts.forEach(p=>{ p.x *= s; p.y = nb - (ob - p.y)*s; p.lw *= s; }); });
+  }
+  prevSize = {w:r.width, h:r.height, b:baseY(r.height)};
   cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
   ctx.setTransform(dpr,0,0,dpr,0,0); redraw();
 }
@@ -231,6 +255,22 @@ cv.addEventListener("pointermove", e => {
 });
 ["pointerup","pointercancel","pointerleave"].forEach(t=>cv.addEventListener(t,()=>{cur=null;}));
 new ResizeObserver(fit).observe($("pad"));
+
+/* ---------- pantalla completa para firmar ---------- */
+function setFull(on){
+  const pad = $("pad");
+  pad.classList.toggle("full", on); document.body.classList.toggle("signing", on);
+  $("grow").textContent = on ? "Listo" : "Pantalla completa";
+  $("grow").setAttribute("aria-pressed", on);
+  if (on && pad.requestFullscreen) pad.requestFullscreen().catch(()=>{});
+  if (!on && document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  if (!on) refreshStamps();
+}
+$("grow").addEventListener("click", ()=>setFull(!$("pad").classList.contains("full")));
+document.addEventListener("keydown", e=>{ if (e.key==="Escape" && $("pad").classList.contains("full")) setFull(false); });
+document.addEventListener("fullscreenchange", ()=>{ if (!document.fullscreenElement && $("pad").classList.contains("full")) setFull(false); });
+$("fUndo").addEventListener("click", ()=>$("undo").click());
+$("fClear").addEventListener("click", ()=>$("clear").click());
 
 /* ---------- controles ---------- */
 document.querySelectorAll(".sw").forEach(b=>b.addEventListener("click",()=>{
@@ -414,10 +454,10 @@ $("savePdf").addEventListener("click", async ()=>{
 /* ---------- ejemplo inicial ---------- */
 function demo(){
   const r = cv.getBoundingClientRect(); if (!r.width) return;
-  const bx = r.width*0.18, by = r.height-70, W = Math.min(260, r.width*0.6);
+  const W = Math.min(400, r.width*0.62), k = W/260, bx = r.width*0.16, by = r.height-52-14;
   const pts = []; let lw = width;
   for (let t=0;t<=1;t+=0.012){
-    const x = bx + t*W, y = by - 26*Math.sin(t*Math.PI*3.2)*(1-t*0.5) - 18*Math.sin(t*Math.PI*9)*t;
+    const x = bx + t*W, y = by - 26*k*Math.sin(t*Math.PI*3.2)*(1-t*0.5) - 18*k*Math.sin(t*Math.PI*9)*t - 20*k;
     lw = width*(0.7+0.6*Math.sin(t*Math.PI)); pts.push({x,y,lw});
   }
   strokes.push({color:ink,w:width,pts});
